@@ -16,6 +16,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 public class FrontControllerServlet extends HttpServlet {
 
+    Map<String, Mapping> mappings ;
     private List<Class<?>> controllers = new ArrayList<>();
     private ParamScanUtil scanner;
 
@@ -31,6 +32,7 @@ public class FrontControllerServlet extends HttpServlet {
             scanner = new ParamScanUtil();
 
             controllers = scanner.scan(packageName);
+            mappings = scanner.registry.getMappings() ;
 
             System.out.println(
                     "[FrontController] "
@@ -86,10 +88,26 @@ public class FrontControllerServlet extends HttpServlet {
             Mapping mapping = scanner.verifyUrl(url, scanner);
 
             out.println("<h3 style='color:green;'>Mapping trouvé</h3>");
+            
+
+                out.println("<p>"
+                        + url + " -> "
+                        + mapping.getControllerClass().getSimpleName()
+                        + "."
+                        + mapping.getMethod().getName()
+                        + "</p>");
+        
+        
+
+        } catch (ExceptionUrl e) {
+
+            
+            out.println("<p style='color:red;'>" + e.getMessage() + "</p>");
+            out.println("<h3 style='color:green;'>Mapping trouvé</h3>");
             out.println("<h3>TOUS LES MAPPINGS</h3>");
 
             for (Map.Entry<String, Mapping> entry :
-                    scanner.registry.getMappings().entrySet()) {
+                    mappings.entrySet()) {
 
                 String u = entry.getKey();
                 Mapping m = entry.getValue();
@@ -102,11 +120,6 @@ public class FrontControllerServlet extends HttpServlet {
                         + "</p>");
             }
         
-
-        } catch (ExceptionUrl e) {
-
-            out.println("<h3 style='color:red;'>404 - URL introuvable</h3>");
-            out.println("<p>" + e.getMessage() + "</p>");
         }
 
         out.println("</body>");
