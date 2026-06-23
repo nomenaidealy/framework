@@ -1,15 +1,23 @@
 package idealyfw.util;
 
 import java.io.File;
+import java.lang.reflect.Method;
+
 import idealyfw.annotation.Controller;
+import idealyfw.annotation.UrlMapping;
+import idealyfw.exception.ExceptionUrl;
+
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
 
 public class ParamScanUtil {
 
-    public static List<Class<?>> scan(String packageName)
+    public final CustomUrlRegistry registry = new CustomUrlRegistry(); 
+    
+    public  List<Class<?>> scan(String packageName)
             throws URISyntaxException, ClassNotFoundException {
 
         List<Class<?>> controllers = new ArrayList<>();
@@ -24,11 +32,21 @@ public class ParamScanUtil {
         }
 
         File packageDir = new File(resource.toURI());
+
+        File[] directoryFiles = packageDir.listFiles(
+            file-> file.isDirectory()
+        );
+        for(File file : directoryFiles) {
+            String sous_package = packageName + "." + file.getName() ;
+           List<Class<?>> listeController =  scan(sous_package) ;
+            controllers.addAll(listeController) ;
+        }
+
         File[] classFiles = packageDir.listFiles(
             file -> file.getName().endsWith(".class")
         );
 
-        // ✅ garde-fou 2
+        
         if (classFiles == null) return controllers;
 
         for (File file : classFiles) {
@@ -37,10 +55,37 @@ public class ParamScanUtil {
             Class<?> clazz   = Class.forName(fullname);
             if (clazz.isAnnotationPresent(Controller.class)) {
                 controllers.add(clazz);
+                enregisterUrlMapping(clazz) ;
                 System.out.println("[Scanner] Controller trouve : " + clazz.getName());
             }
         }
 
         return controllers;
     }
+
+    
+    public  void enregisterUrlMapping(Class<?> clazzControllers){
+       
+        Method[] methods = clazzControllers.getDeclaredMethods() ;
+        for(Method method : methods){
+            if(method.isAnnotationPresent(UrlMapping.class)){
+                UrlMapping urlMapping = method.getAnnotation(UrlMapping.class);
+               
+                Mapping mapping = new Mapping(clazzControllers, method);
+                registry.register(urlMapping.url(), mapping);
+            }
+        }
+        
+    }
+
+    public Mapping verifyUrl(String url , ParamScanUtil scanner){
+        Mapping mapping = scanner.registry.getMapping(url) ;
+        if(mapping == null){
+            throw new ExceptionUrl(url) ; 
+
+        }
+        return mapping ;
+        
+    }
+
 }
