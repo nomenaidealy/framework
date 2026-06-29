@@ -64,18 +64,25 @@ public class ParamScanUtil {
     }
 
     
-    public  void enregisterUrlMapping(Class<?> clazzControllers){
-       
-        Method[] methods = clazzControllers.getDeclaredMethods() ;
-        for(Method method : methods){
-            if(method.isAnnotationPresent(UrlMapping.class)){
+    public void enregisterUrlMapping(Class<?> clazzControllers) {
+
+    Method[] methods = clazzControllers.getDeclaredMethods();
+
+    try {
+        // Une seule instance créée pour CETTE classe de contrôleur
+        Object instanceUnique = clazzControllers.getDeclaredConstructor().newInstance();
+
+        for (Method method : methods) {
+            if (method.isAnnotationPresent(UrlMapping.class)) {
                 UrlMapping urlMapping = method.getAnnotation(UrlMapping.class);
-               
-                Mapping mapping = new Mapping(clazzControllers, method);
+
+                Mapping mapping = new Mapping(clazzControllers, method, instanceUnique);
                 registry.register(urlMapping.url(), urlMapping.method(), mapping);
             }
         }
-        
+        } catch (Exception e) {
+            throw new RuntimeException("Impossible d'instancier " + clazzControllers.getName(), e);
+        }
     }
 
    public Mapping verifyUrl(String url, String method, ParamScanUtil scanner) {

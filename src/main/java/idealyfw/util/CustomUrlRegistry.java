@@ -26,9 +26,6 @@ public class CustomUrlRegistry {
      }
 
      
-
-     
-
      public Mapping getMapping(String url, String method) {
 
       UrlMethod key = new UrlMethod(cleanPath(url), method);

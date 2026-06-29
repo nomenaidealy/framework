@@ -2,6 +2,8 @@ package idealyfw.servlet;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -85,9 +87,15 @@ public class FrontControllerServlet extends HttpServlet {
         out.println("<p><b>HTTP Method :</b> " + methodHttp + "</p>");
 
         try {
-
-            
             Mapping mapping = scanner.verifyUrl(url, methodHttp, scanner);
+
+            Object controllerInstance = mapping.getControllerInstance();
+            Method method = mapping.getMethod();
+
+            Object result = method.invoke(controllerInstance);
+
+            out.println("<p>Méthode exécutée : " + method.getName() + "</p>");
+            out.println("<p>Resultat exécutée : " + result + "</p>");
 
             out.println("<h3 style='color:green;'>Mapping trouvé</h3>");
             
@@ -98,8 +106,6 @@ public class FrontControllerServlet extends HttpServlet {
                         + "."
                         + mapping.getMethod().getName()
                         + "</p>");
-        
-        
 
         } catch (ExceptionUrl e) {
              if (uri.matches(".*\\.(html|css|js|png|jpg|jpeg|gif|ico)$")) {
@@ -127,7 +133,19 @@ public class FrontControllerServlet extends HttpServlet {
                         + "</p>");
             }
                     
-        }
+        }catch (IllegalAccessException e) {
+            out.println("<p style='color:red;'>Accès interdit à la méthode : " 
+                        + e.getMessage() + "</p>");
+
+        } catch (InvocationTargetException e) {
+            // C'est l'exception la plus importante :
+            // elle "enveloppe" l'exception RÉELLE levée À L'INTÉRIEUR de ta méthode contrôleur
+            Throwable cause = e.getCause();
+            out.println("<p style='color:red;'>Erreur dans le contrôleur : " 
+                        + cause.getMessage() + "</p>");
+        }  
+
+        
 
         out.println("</body>");
         out.println("</html>");
