@@ -72,20 +72,21 @@ public class ParamScanUtil {
                 UrlMapping urlMapping = method.getAnnotation(UrlMapping.class);
                
                 Mapping mapping = new Mapping(clazzControllers, method);
-                registry.register(urlMapping.url(), mapping);
+                registry.register(urlMapping.url(), urlMapping.method(), mapping);
             }
         }
         
     }
 
-    public Mapping verifyUrl(String url , ParamScanUtil scanner){
-        Mapping mapping = scanner.registry.getMapping(url) ;
-        if(mapping == null){
-            throw new ExceptionUrl(url) ; 
+   public Mapping verifyUrl(String url, String method, ParamScanUtil scanner) {
 
-        }
-        return mapping ;
-        
+    Mapping mapping = scanner.registry.getMapping(url, method);
+
+    if (mapping == null) {
+        throw new ExceptionUrl(url + " [" + method + "]");
     }
+
+    return mapping;
+}
 
 }

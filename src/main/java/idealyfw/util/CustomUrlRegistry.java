@@ -4,14 +4,17 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 
+import idealyfw.annotation.UrlMapping;
+
 public class CustomUrlRegistry {
 
-     private final Map<String,Mapping> mappings = new HashMap<>() ;
+     private final Map<UrlMethod, Mapping> mappings = new HashMap<>();
 
 
-     public void register(String url, Mapping mapping){
+     public void register(String url,String methodHttp , Mapping mapping){
         String cleanUrl = cleanPath(url);
-        mappings.put(cleanUrl,  mapping);
+        UrlMethod key = new UrlMethod(cleanUrl, methodHttp) ;
+        mappings.put(key,  mapping);
      }
 
      public String cleanPath(String path){
@@ -24,13 +27,18 @@ public class CustomUrlRegistry {
 
      
 
-     public Mapping getMapping(String url){
-      return mappings.get(cleanPath(url)) ;
-     }
+     
 
-     public Map<String, Mapping> getMappings() {
-         return mappings;
-      }
+     public Mapping getMapping(String url, String method) {
+
+      UrlMethod key = new UrlMethod(cleanPath(url), method);
+
+      return mappings.get(key);
+   }
+
+   public Map<UrlMethod, Mapping> getMappings() {
+    return mappings;
+}
 
       
 }

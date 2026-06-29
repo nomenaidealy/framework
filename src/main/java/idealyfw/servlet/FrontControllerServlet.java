@@ -13,10 +13,12 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-
+ import idealyfw.util.UrlMethod;
 public class FrontControllerServlet extends HttpServlet {
 
-    Map<String, Mapping> mappings ;
+   
+
+    Map<UrlMethod, Mapping> mappings;
     private List<Class<?>> controllers = new ArrayList<>();
     private ParamScanUtil scanner;
 
@@ -32,7 +34,7 @@ public class FrontControllerServlet extends HttpServlet {
             scanner = new ParamScanUtil();
 
             controllers = scanner.scan(packageName);
-            mappings = scanner.registry.getMappings() ;
+            mappings = scanner.registry.getMappings();
 
             System.out.println(
                     "[FrontController] "
@@ -85,7 +87,7 @@ public class FrontControllerServlet extends HttpServlet {
         try {
 
             
-            Mapping mapping = scanner.verifyUrl(url, scanner);
+            Mapping mapping = scanner.verifyUrl(url, methodHttp, scanner);
 
             out.println("<h3 style='color:green;'>Mapping trouvé</h3>");
             
@@ -100,26 +102,31 @@ public class FrontControllerServlet extends HttpServlet {
         
 
         } catch (ExceptionUrl e) {
-
-            
+             if (uri.matches(".*\\.(html|css|js|png|jpg|jpeg|gif|ico)$")) {
+                    getServletContext().getNamedDispatcher("default").forward(req, resp);
+                    return;
+                }
+                        
             out.println("<p style='color:red;'>" + e.getMessage() + "</p>");
             out.println("<h3 style='color:green;'>Mapping trouvé</h3>");
             out.println("<h3>TOUS LES MAPPINGS</h3>");
 
-            for (Map.Entry<String, Mapping> entry :
-                    mappings.entrySet()) {
+            for (Map.Entry<UrlMethod, Mapping> entry : mappings.entrySet()) {
 
-                String u = entry.getKey();
+                UrlMethod key = entry.getKey();
                 Mapping m = entry.getValue();
 
                 out.println("<p>"
-                        + u + " -> "
+                        + key.getMethod()
+                        + " "
+                        + key.getUrlString()
+                        + " -> "
                         + m.getControllerClass().getSimpleName()
                         + "."
                         + m.getMethod().getName()
                         + "</p>");
             }
-        
+                    
         }
 
         out.println("</body>");
