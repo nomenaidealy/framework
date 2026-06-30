@@ -69,14 +69,14 @@ public class ParamScanUtil {
     Method[] methods = clazzControllers.getDeclaredMethods();
 
     try {
-        // Une seule instance créée pour CETTE classe de contrôleur
-        Object instanceUnique = clazzControllers.getDeclaredConstructor().newInstance();
+        
+        
 
         for (Method method : methods) {
             if (method.isAnnotationPresent(UrlMapping.class)) {
                 UrlMapping urlMapping = method.getAnnotation(UrlMapping.class);
 
-                Mapping mapping = new Mapping(clazzControllers, method, instanceUnique);
+                Mapping mapping = new Mapping(clazzControllers, method);
                 registry.register(urlMapping.url(), urlMapping.method(), mapping);
             }
         }

@@ -1,17 +1,18 @@
 package idealyfw.util;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 public class Mapping {
 
     private Class<?> controllerClass;
     private Method method;
-    private Object controllerInstance; // ← nouveau
+  
 
-    public Mapping(Class<?> controllerClass, Method method, Object controllerInstance) {
+    public Mapping(Class<?> controllerClass, Method method) {
         this.controllerClass = controllerClass;
         this.method = method;
-        this.controllerInstance = controllerInstance;
+       
     }
 
     public Class<?> getControllerClass() {
@@ -22,7 +23,7 @@ public class Mapping {
         return method;
     }
 
-    public Object getControllerInstance() {
-        return controllerInstance;
+    public Object getControllerInstance() throws ReflectiveOperationException {
+        return controllerClass.getDeclaredConstructor().newInstance();
     }
 }

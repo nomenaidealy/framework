@@ -91,7 +91,7 @@ public class FrontControllerServlet extends HttpServlet {
 
             Object controllerInstance = mapping.getControllerInstance();
             Method method = mapping.getMethod();
-
+            scanner.registry.executeMethod(controllerInstance, method);
             Object result = method.invoke(controllerInstance);
 
             out.println("<p>Méthode exécutée : " + method.getName() + "</p>");
@@ -108,10 +108,7 @@ public class FrontControllerServlet extends HttpServlet {
                         + "</p>");
 
         } catch (ExceptionUrl e) {
-             if (uri.matches(".*\\.(html|css|js|png|jpg|jpeg|gif|ico)$")) {
-                    getServletContext().getNamedDispatcher("default").forward(req, resp);
-                    return;
-                }
+             
                         
             out.println("<p style='color:red;'>" + e.getMessage() + "</p>");
             out.println("<h3 style='color:green;'>Mapping trouvé</h3>");
@@ -143,6 +140,9 @@ public class FrontControllerServlet extends HttpServlet {
             Throwable cause = e.getCause();
             out.println("<p style='color:red;'>Erreur dans le contrôleur : " 
                         + cause.getMessage() + "</p>");
+        } catch (ReflectiveOperationException e) {
+            
+            e.printStackTrace();
         }  
 
         
