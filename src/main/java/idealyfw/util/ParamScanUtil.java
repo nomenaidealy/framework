@@ -10,7 +10,6 @@ import idealyfw.exception.ExceptionUrl;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
 
 public class ParamScanUtil {
