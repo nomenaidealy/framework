@@ -5,7 +5,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 
-import idealyfw.annotation.UrlMapping;
+
 import idealyfw.exception.ExceptionDoublageURL;
 
 public class CustomUrlRegistry {

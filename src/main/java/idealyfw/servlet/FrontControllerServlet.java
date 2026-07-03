@@ -4,8 +4,6 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 import idealyfw.exception.ExceptionUrl;
@@ -21,37 +19,18 @@ public class FrontControllerServlet extends HttpServlet {
    
 
     Map<UrlMethod, Mapping> mappings;
-    private List<Class<?>> controllers = new ArrayList<>();
-    private ParamScanUtil scanner;
+    ParamScanUtil scanner = new ParamScanUtil();
 
     @Override
+   
     public void init() throws ServletException {
-
-        String packageName =
-                getServletConfig()
-                .getInitParameter("controllerPackage");
-
-        try {
-
-            scanner = new ParamScanUtil();
-
-            controllers = scanner.scan(packageName);
-            mappings = scanner.registry.getMappings();
-
-            System.out.println(
-                    "[FrontController] "
-                    + controllers.size()
-                    + " controller(s) trouvé(s)"
-            );
-
-            for (Class<?> c : controllers) {
-                System.out.println(" → " + c.getName());
-            }
-
-        } catch (Exception e) {
-            throw new ServletException(e);
+        mappings = (Map<UrlMethod, Mapping>) getServletContext().getAttribute("globalMappings");
+        
+        if (mappings == null) {
+            throw new ServletException("[FrontController] Erreur fatale : 'globalMappings' est introuvable. Le Listener a-t-il bien démarré ?");
         }
     }
+
 
     @Override
     protected void doGet(HttpServletRequest req,HttpServletResponse resp)throws ServletException, IOException {
@@ -91,8 +70,8 @@ public class FrontControllerServlet extends HttpServlet {
 
             Object controllerInstance = mapping.getControllerInstance();
             Method method = mapping.getMethod();
-            scanner.registry.executeMethod(controllerInstance, method);
-            Object result = method.invoke(controllerInstance);
+            
+            Object result = scanner.registry.executeMethod(controllerInstance, method);
 
             out.println("<p>Méthode exécutée : " + method.getName() + "</p>");
             out.println("<p>Resultat exécutée : " + result + "</p>");
@@ -135,8 +114,7 @@ public class FrontControllerServlet extends HttpServlet {
                         + e.getMessage() + "</p>");
 
         } catch (InvocationTargetException e) {
-            // C'est l'exception la plus importante :
-            // elle "enveloppe" l'exception RÉELLE levée À L'INTÉRIEUR de ta méthode contrôleur
+            
             Throwable cause = e.getCause();
             out.println("<p style='color:red;'>Erreur dans le contrôleur : " 
                         + cause.getMessage() + "</p>");
