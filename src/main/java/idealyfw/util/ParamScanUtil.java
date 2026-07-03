@@ -70,8 +70,6 @@ public class ParamScanUtil {
 
     try {
         
-        
-
         for (Method method : methods) {
             if (method.isAnnotationPresent(UrlMapping.class)) {
                 UrlMapping urlMapping = method.getAnnotation(UrlMapping.class);
