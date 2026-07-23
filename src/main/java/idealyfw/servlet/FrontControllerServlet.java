@@ -27,15 +27,15 @@ public class FrontControllerServlet extends HttpServlet {
     @Override
     public void init() throws ServletException {
 
-        // ── 1. Récupérer les mappings du Listener ─────────────
+      
         mappings = (Map<UrlMethod, Mapping>) getServletContext()
                         .getAttribute("globalMappings");
 
-        // ── 2. Récupérer le container Spring du Listener ──────
+     
         springContext = (ApplicationContext) getServletContext()
                         .getAttribute("springContext");
 
-        // ── 3. Vérifications ──────────────────────────────────
+    
         if (mappings == null) {
             throw new ServletException(
                 "[FrontController] 'globalMappings' introuvable. " +
@@ -50,7 +50,7 @@ public class FrontControllerServlet extends HttpServlet {
             );
         }
 
-        // ── 4. Lire prefix et suffix depuis web.xml ───────────
+  
         prefix = getServletContext().getInitParameter("prefix");
         suffix = getServletContext().getInitParameter("suffix");
 
@@ -87,7 +87,7 @@ public class FrontControllerServlet extends HttpServlet {
         System.out.println("[FrontController] " + methodHttp + " " + url);
 
         try {
-            // ── 1. Chercher le mapping 
+       
             UrlMethod key   = new UrlMethod(url, methodHttp);
             Mapping mapping = mappings.get(key);
 
@@ -95,28 +95,28 @@ public class FrontControllerServlet extends HttpServlet {
                 throw new ExceptionUrl(url + " [" + methodHttp + "]");
             }
 
-            // ── 2. Récupérer l'instance du controller via Spring
+          
             Object controllerInstance = springContext
                     .getBean(mapping.getControllerClass());
 
-            // ── 3. Invoquer la méthode 
+           
             Method method       = mapping.getMethod();
             Class<?>[] params   = method.getParameterTypes();
             Object result;
 
             if (params.length == 1 &&
                 params[0] == ApplicationContext.class) {
-                //méthode attend ApplicationContext — on le passe
+              
                 result = method.invoke(controllerInstance, springContext);
 
             } else {
-                // méthode sans paramètre — invocation normale
+              
                 result = method.invoke(controllerInstance);
             }
 
-            // ── 4. Traiter le résultat 
+         
 
-            // cas 1 : ModelAndView → forward vers JSP
+          
             if (result instanceof ModelAndView mv) {
 
                 for (Map.Entry<String, Object> entry :
@@ -130,11 +130,10 @@ public class FrontControllerServlet extends HttpServlet {
                     .getRequestDispatcher(viewPath)
                     .forward(req, resp);
 
-            // cas 2 : String → afficher directement dans le navigateur
+          
             } else if (result instanceof String texte) {
                 resp.getWriter().println(texte);
 
-            // cas 3 : null ou autre → ne rien faire
             } else {
                 System.out.println("[FrontController] résultat ignoré : " + result);
             }

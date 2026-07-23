@@ -19,7 +19,7 @@ public class RequestContextListener implements ServletContextListener {
             .getInitParameter("springConfigClass");
 
         try {
-            // ── 1. Démarrer le container Spring 
+     
             AnnotationConfigApplicationContext springContext =
                 new AnnotationConfigApplicationContext(
                     Class.forName(springConfig) 
@@ -28,7 +28,7 @@ public class RequestContextListener implements ServletContextListener {
             
             sce.getServletContext().setAttribute("springContext", springContext);
 
-            // ── 2. Scanner vos controllers 
+          
             ParamScanUtil scanner = new ParamScanUtil();
             scanner.scan(packageName);
             Map<UrlMethod, Mapping> mappings = scanner.registry.getMappings();
