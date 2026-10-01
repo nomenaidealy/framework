@@ -5,10 +5,14 @@ import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.context.ApplicationContext;
 
+import idealyfw.annotation.ApiRest;
 import idealyfw.exception.ExceptionUrl;
+import idealyfw.util.JsonUtil;
 import idealyfw.util.Mapping;
 import idealyfw.util.ModelAndView;
 import idealyfw.util.UrlMethod;
@@ -19,23 +23,28 @@ import jakarta.servlet.http.HttpServletResponse;
 
 public class FrontControllerServlet extends HttpServlet {
 
+   
     Map<UrlMethod, Mapping> mappings;
+
+   
     ApplicationContext springContext;
+
+ 
     String prefix;
     String suffix;
+
+   
+    private final Map<Class<?>, Object> controllerInstances = new ConcurrentHashMap<>();
 
     @Override
     public void init() throws ServletException {
 
-      
         mappings = (Map<UrlMethod, Mapping>) getServletContext()
                         .getAttribute("globalMappings");
 
-     
         springContext = (ApplicationContext) getServletContext()
                         .getAttribute("springContext");
 
-    
         if (mappings == null) {
             throw new ServletException(
                 "[FrontController] 'globalMappings' introuvable. " +
@@ -50,7 +59,6 @@ public class FrontControllerServlet extends HttpServlet {
             );
         }
 
-  
         prefix = getServletContext().getInitParameter("prefix");
         suffix = getServletContext().getInitParameter("suffix");
 
@@ -74,20 +82,40 @@ public class FrontControllerServlet extends HttpServlet {
         processRequest(req, resp);
     }
 
+
+    private Object getControllerInstance(Class<?> controllerClass)
+            throws ReflectiveOperationException {
+
+        Object instance = controllerInstances.get(controllerClass);
+
+        if (instance == null) {
+            instance = controllerClass.getDeclaredConstructor().newInstance();
+
+            AutowireCapableBeanFactory factory = springContext.getAutowireCapableBeanFactory();
+            factory.autowireBean(instance); 
+
+            controllerInstances.put(controllerClass, instance);
+        }
+
+        return instance;
+    }
+
     protected void processRequest(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
+        // Content-type par défaut : sera écrasé en "application/json" si la
+        // méthode ciblée est annotée @ApiRest (voir plus bas).
         resp.setContentType("text/html;charset=UTF-8");
 
         String uri        = req.getRequestURI();
-        String context    = req.getContextPath();
-        String url        = uri.substring(context.length());
-        String methodHttp = req.getMethod();
+        String context     = req.getContextPath();
+        String url         = uri.substring(context.length());
+        String methodHttp  = req.getMethod();
 
         System.out.println("[FrontController] " + methodHttp + " " + url);
 
         try {
-       
+        
             UrlMethod key   = new UrlMethod(url, methodHttp);
             Mapping mapping = mappings.get(key);
 
@@ -95,32 +123,43 @@ public class FrontControllerServlet extends HttpServlet {
                 throw new ExceptionUrl(url + " [" + methodHttp + "]");
             }
 
-          
-            Object controllerInstance = springContext
-                    .getBean(mapping.getControllerClass());
-
            
-            Method method       = mapping.getMethod();
-            Class<?>[] params   = method.getParameterTypes();
+            Object controllerInstance = getControllerInstance(mapping.getControllerClass());
+
+            Method method     = mapping.getMethod();
+            Class<?>[] params = method.getParameterTypes();
             Object result;
 
-            if (params.length == 1 &&
-                params[0] == ApplicationContext.class) {
-              
+            
+            if (params.length == 1 && params[0] == ApplicationContext.class) {
                 result = method.invoke(controllerInstance, springContext);
-
             } else {
-              
                 result = method.invoke(controllerInstance);
             }
 
-         
+           
+            if (method.isAnnotationPresent(ApiRest.class)) {
+
+                resp.setContentType("application/json;charset=UTF-8");
+                PrintWriter out = resp.getWriter();
+
+                if (result instanceof String) {
+                   
+                    String jsonBrut = (String) result;
+                    out.print(jsonBrut);
+                } else {
+                   
+                    out.print(JsonUtil.objectToJson(result));
+                }
+
+                out.flush();
+                return; 
+            }
 
           
             if (result instanceof ModelAndView mv) {
 
-                for (Map.Entry<String, Object> entry :
-                        mv.getModel().entrySet()) {
+                for (Map.Entry<String, Object> entry : mv.getModel().entrySet()) {
                     req.setAttribute(entry.getKey(), entry.getValue());
                 }
 
@@ -130,7 +169,6 @@ public class FrontControllerServlet extends HttpServlet {
                     .getRequestDispatcher(viewPath)
                     .forward(req, resp);
 
-          
             } else if (result instanceof String texte) {
                 resp.getWriter().println(texte);
 
