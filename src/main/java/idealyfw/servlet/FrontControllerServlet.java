@@ -21,41 +21,24 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
-/**
- * Front Controller : point d'entrée unique de toutes les requêtes HTTP.
- *
- * Rôle :
- *  1. Retrouver, à partir de l'URL + verbe HTTP, quelle méthode de quel
- *     contrôleur doit être exécutée (grâce à la Map "globalMappings"
- *     construite au démarrage par ParamScanUtil / RequestContextListener).
- *  2. Invoquer cette méthode par réflexion.
- *  3. Traiter la valeur de retour selon deux modes :
- *       - mode "vue"  (par défaut) : ModelAndView -> forward vers une JSP
- *       - mode "API"  (@ApiRest)   : conversion en JSON -> écrit dans la réponse
- */
 public class FrontControllerServlet extends HttpServlet {
 
-    // Table de routage globale : (URL, verbe HTTP) -> (classe + méthode à invoquer)
+   
     Map<UrlMethod, Mapping> mappings;
 
-    // Contexte Spring : permet de récupérer les contrôleurs en tant que beans
-    // (donc avec injection de dépendances possible dedans)
+   
     ApplicationContext springContext;
 
-    // Chemins ajoutés autour du nom de vue renvoyé par un ModelAndView
-    // ex : prefix = "/WEB-INF/views/", suffix = ".jsp"
+ 
     String prefix;
     String suffix;
 
-    // Cache des instances de contrôleurs créées par LE FRAMEWORK (pas Spring).
-    // Un seul contrôleur = une seule instance réutilisée pour toutes les requêtes
-    // (comportement singleton, comme le fait Spring par défaut).
+   
     private final Map<Class<?>, Object> controllerInstances = new ConcurrentHashMap<>();
 
     @Override
     public void init() throws ServletException {
 
-        // Récupère ce que RequestContextListener a préparé au démarrage du serveur
         mappings = (Map<UrlMethod, Mapping>) getServletContext()
                         .getAttribute("globalMappings");
 
@@ -99,18 +82,7 @@ public class FrontControllerServlet extends HttpServlet {
         processRequest(req, resp);
     }
 
-    /**
-     * Fournit une instance du contrôleur, gérée par LE FRAMEWORK (pas Spring).
-     *
-     * - Instanciation : via réflexion, constructeur par défaut (pas besoin
-     *   de @Component/@ComponentScan sur les contrôleurs).
-     * - Dépendances (@Autowired) : Spring les injecte quand même dans les
-     *   champs de l'instance, via autowireBean(), sans que le contrôleur
-     *   soit lui-même déclaré comme bean. Ça permet d'utiliser Spring
-     *   uniquement pour les services/repositories, comme demandé.
-     * - Mise en cache : une seule instance par classe de contrôleur,
-     *   réutilisée pour toutes les requêtes (comme le ferait Spring par défaut).
-     */
+
     private Object getControllerInstance(Class<?> controllerClass)
             throws ReflectiveOperationException {
 
@@ -120,7 +92,7 @@ public class FrontControllerServlet extends HttpServlet {
             instance = controllerClass.getDeclaredConstructor().newInstance();
 
             AutowireCapableBeanFactory factory = springContext.getAutowireCapableBeanFactory();
-            factory.autowireBean(instance); // remplit les champs @Autowired s'il y en a
+            factory.autowireBean(instance); 
 
             controllerInstances.put(controllerClass, instance);
         }
@@ -143,7 +115,7 @@ public class FrontControllerServlet extends HttpServlet {
         System.out.println("[FrontController] " + methodHttp + " " + url);
 
         try {
-            // ---- 1. Retrouver la route ----
+        
             UrlMethod key   = new UrlMethod(url, methodHttp);
             Mapping mapping = mappings.get(key);
 
@@ -151,47 +123,40 @@ public class FrontControllerServlet extends HttpServlet {
                 throw new ExceptionUrl(url + " [" + methodHttp + "]");
             }
 
-            // ---- 2. Récupérer le contrôleur (instancié par LE FRAMEWORK, pas Spring) ----
-            // Spring n'a plus besoin de connaître la classe du contrôleur.
-            // On l'instancie nous-mêmes, puis Spring injecte juste les champs
-            // @Autowired (services, repositories...) s'il y en a.
+           
             Object controllerInstance = getControllerInstance(mapping.getControllerClass());
 
             Method method     = mapping.getMethod();
             Class<?>[] params = method.getParameterTypes();
             Object result;
 
-            // Cas particulier : la méthode demande le contexte Spring en paramètre
+            
             if (params.length == 1 && params[0] == ApplicationContext.class) {
                 result = method.invoke(controllerInstance, springContext);
             } else {
                 result = method.invoke(controllerInstance);
             }
 
-            // ---- 3. Mode API REST ----
-            // Si la méthode porte @ApiRest, on répond en JSON et on s'arrête là :
-            // pas de forward vers une vue JSP dans ce mode.
+           
             if (method.isAnnotationPresent(ApiRest.class)) {
 
                 resp.setContentType("application/json;charset=UTF-8");
                 PrintWriter out = resp.getWriter();
 
                 if (result instanceof String) {
-                    // Le développeur a déjà construit le JSON lui-même (String).
-                    // Rien à convertir : on l'écrit tel quel.
+                   
                     String jsonBrut = (String) result;
                     out.print(jsonBrut);
                 } else {
-                    // Le développeur renvoie un objet (POJO, List, Map...).
-                    // Le framework le sérialise en JSON via Jackson.
+                   
                     out.print(JsonUtil.objectToJson(result));
                 }
 
                 out.flush();
-                return; // fin du traitement pour cette requête
+                return; 
             }
 
-            // ---- 4. Mode "vue" classique (comportement par défaut) ----
+          
             if (result instanceof ModelAndView mv) {
 
                 for (Map.Entry<String, Object> entry : mv.getModel().entrySet()) {
