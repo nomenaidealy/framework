@@ -6,6 +6,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.lang.reflect.Parameter;
+import java.io.File;
 
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.context.ApplicationContext;
@@ -100,11 +102,62 @@ public class FrontControllerServlet extends HttpServlet {
         return instance;
     }
 
+    private Object convert(String valeurBrute, Class<?> type) {
+
+    
+    if (valeurBrute == null || valeurBrute.isEmpty()) {
+        if (type == int.class)     return 0;     
+        if (type == long.class)    return 0L;
+        if (type == double.class)  return 0.0;
+        if (type == float.class)   return 0f;
+        if (type == boolean.class) return false;
+        return null; 
+    }
+
+   
+    if (type == String.class) {
+        return valeurBrute;
+    }
+    if (type == int.class || type == Integer.class) {
+        return Integer.parseInt(valeurBrute);
+    }
+    if (type == long.class || type == Long.class) {
+        return Long.parseLong(valeurBrute);
+    }
+    if (type == double.class || type == Double.class) {
+        return Double.parseDouble(valeurBrute);
+    }
+    if (type == float.class || type == Float.class) {
+        return Float.parseFloat(valeurBrute);
+    }
+    if (type == boolean.class || type == Boolean.class) {
+        return Boolean.parseBoolean(valeurBrute);
+    }
+
+  
+    return valeurBrute;
+}
+
+    private Object[] resolveArguments(Method method, HttpServletRequest req) {
+
+    Parameter[] parameters = method.getParameters();
+    Object[] args = new Object[parameters.length];
+
+    for (int i = 0; i < parameters.length; i++) {
+        String nomVariable = parameters[i].getName();
+        String valeurBrute = req.getParameter(nomVariable);
+        Class<?> type       = parameters[i].getType();
+
+        args[i] = convert(valeurBrute, type);
+    }
+
+    return args;
+}
+
     protected void processRequest(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
-        // Content-type par défaut : sera écrasé en "application/json" si la
-        // méthode ciblée est annotée @ApiRest (voir plus bas).
+       
         resp.setContentType("text/html;charset=UTF-8");
 
         String uri        = req.getRequestURI();
@@ -113,6 +166,16 @@ public class FrontControllerServlet extends HttpServlet {
         String methodHttp  = req.getMethod();
 
         System.out.println("[FrontController] " + methodHttp + " " + url);
+
+        
+        String realPath = getServletContext().getRealPath(url);
+        if (realPath != null) {
+            File fichier = new File(realPath);
+            if (fichier.isFile()) {
+                getServletContext().getNamedDispatcher("default").forward(req, resp);
+                return;
+            }
+        }
 
         try {
         
@@ -130,11 +193,21 @@ public class FrontControllerServlet extends HttpServlet {
             Class<?>[] params = method.getParameterTypes();
             Object result;
 
-            
+            // la méthode demande le contexte Spring en paramètre
             if (params.length == 1 && params[0] == ApplicationContext.class) {
                 result = method.invoke(controllerInstance, springContext);
-            } else {
+
+
+
+
+            // raha tsy misy param
+            } else if (params.length == 0) {
                 result = method.invoke(controllerInstance);
+
+           
+            } else {
+                Object[] args = resolveArguments(method, req);
+                result = method.invoke(controllerInstance, args);
             }
 
            
