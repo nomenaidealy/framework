@@ -2,6 +2,8 @@ package idealyfw.servlet;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.module.ModuleDescriptor.Modifier;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
@@ -25,47 +27,43 @@ import jakarta.servlet.http.HttpServletResponse;
 
 public class FrontControllerServlet extends HttpServlet {
 
-   
     Map<UrlMethod, Mapping> mappings;
 
-   
     ApplicationContext springContext;
 
- 
     String prefix;
     String suffix;
 
-   
     private final Map<Class<?>, Object> controllerInstances = new ConcurrentHashMap<>();
 
     @Override
     public void init() throws ServletException {
 
         mappings = (Map<UrlMethod, Mapping>) getServletContext()
-                        .getAttribute("globalMappings");
+                .getAttribute("globalMappings");
 
         springContext = (ApplicationContext) getServletContext()
-                        .getAttribute("springContext");
+                .getAttribute("springContext");
 
         if (mappings == null) {
             throw new ServletException(
-                "[FrontController] 'globalMappings' introuvable. " +
-                "Le Listener a-t-il bien démarré ?"
-            );
+                    "[FrontController] 'globalMappings' introuvable. " +
+                            "Le Listener a-t-il bien démarré ?");
         }
 
         if (springContext == null) {
             throw new ServletException(
-                "[FrontController] 'springContext' introuvable. " +
-                "Vérifiez springConfigClass dans web.xml."
-            );
+                    "[FrontController] 'springContext' introuvable. " +
+                            "Vérifiez springConfigClass dans web.xml.");
         }
 
         prefix = getServletContext().getInitParameter("prefix");
         suffix = getServletContext().getInitParameter("suffix");
 
-        if (prefix == null) prefix = "";
-        if (suffix == null) suffix = "";
+        if (prefix == null)
+            prefix = "";
+        if (suffix == null)
+            suffix = "";
 
         System.out.println("[FrontController] initialisé ");
         System.out.println("[FrontController] prefix = " + prefix);
@@ -84,7 +82,6 @@ public class FrontControllerServlet extends HttpServlet {
         processRequest(req, resp);
     }
 
-
     private Object getControllerInstance(Class<?> controllerClass)
             throws ReflectiveOperationException {
 
@@ -94,7 +91,7 @@ public class FrontControllerServlet extends HttpServlet {
             instance = controllerClass.getDeclaredConstructor().newInstance();
 
             AutowireCapableBeanFactory factory = springContext.getAutowireCapableBeanFactory();
-            factory.autowireBean(instance); 
+            factory.autowireBean(instance);
 
             controllerInstances.put(controllerClass, instance);
         }
@@ -104,70 +101,123 @@ public class FrontControllerServlet extends HttpServlet {
 
     private Object convert(String valeurBrute, Class<?> type) {
 
-    
-    if (valeurBrute == null || valeurBrute.isEmpty()) {
-        if (type == int.class)     return 0;     
-        if (type == long.class)    return 0L;
-        if (type == double.class)  return 0.0;
-        if (type == float.class)   return 0f;
-        if (type == boolean.class) return false;
-        return null; 
-    }
+        if (valeurBrute == null || valeurBrute.isEmpty()) {
+            if (type == int.class)
+                return 0;
+            if (type == long.class)
+                return 0L;
+            if (type == double.class)
+                return 0.0;
+            if (type == float.class)
+                return 0f;
+            if (type == boolean.class)
+                return false;
+            return null;
+        }
 
-   
-    if (type == String.class) {
+        if (type == String.class) {
+            return valeurBrute;
+        }
+        if (type == int.class || type == Integer.class) {
+            return Integer.parseInt(valeurBrute);
+        }
+        if (type == long.class || type == Long.class) {
+            return Long.parseLong(valeurBrute);
+        }
+        if (type == double.class || type == Double.class) {
+            return Double.parseDouble(valeurBrute);
+        }
+        if (type == float.class || type == Float.class) {
+            return Float.parseFloat(valeurBrute);
+        }
+        if (type == boolean.class || type == Boolean.class) {
+            return Boolean.parseBoolean(valeurBrute);
+        }
+
         return valeurBrute;
     }
-    if (type == int.class || type == Integer.class) {
-        return Integer.parseInt(valeurBrute);
-    }
-    if (type == long.class || type == Long.class) {
-        return Long.parseLong(valeurBrute);
-    }
-    if (type == double.class || type == Double.class) {
-        return Double.parseDouble(valeurBrute);
-    }
-    if (type == float.class || type == Float.class) {
-        return Float.parseFloat(valeurBrute);
-    }
-    if (type == boolean.class || type == Boolean.class) {
-        return Boolean.parseBoolean(valeurBrute);
+
+    private boolean isSimpleType(Class<?> type) {
+        return type.isPrimitive()
+                || type == String.class
+                || Number.class.isAssignableFrom(type)
+                || type == Boolean.class
+                || type == Character.class;
     }
 
-  
-    return valeurBrute;
-}
-
-    private Object[] resolveArguments(Method method, HttpServletRequest req) {
-
-    Parameter[] parameters = method.getParameters();
-    Object[] args = new Object[parameters.length];
-
-    for (int i = 0; i < parameters.length; i++) {
-        String nomVariable = parameters[i].getName();
-        String valeurBrute = req.getParameter(nomVariable);
-        Class<?> type       = parameters[i].getType();
-
-        args[i] = convert(valeurBrute, type);
+    private boolean hasParamWithPrefix(String prefixe, HttpServletRequest req) {
+        for (String nom : req.getParameterMap().keySet()) {
+            if (nom.startsWith(prefixe))
+                return true;
+        }
+        return false;
     }
 
-    return args;
-}
+    private Object bind(Class<?> type, String prefixe, HttpServletRequest req) throws ReflectiveOperationException {
+
+       
+        Object objet = type.getDeclaredConstructor().newInstance();
+
+      
+        for (Field champ : type.getDeclaredFields()) {
+
+            String nomParam = prefixe + champ.getName(); // ohatra hoe : "p.femme.nom"
+            Class<?> typeChamp = champ.getType();
+            Object valeur;
+
+            if (isSimpleType(typeChamp)) {
+                String brut = req.getParameter(nomParam);
+                if (brut == null)
+                    continue; // rien envoyé : on laisse la valeur par défaut
+                valeur = convert(brut, typeChamp);
+            } else {
+              
+                if (!hasParamWithPrefix(nomParam + ".", req))
+                    continue;
+                valeur = bind(typeChamp, nomParam + ".", req);
+            }
+
+           
+            champ.setAccessible(true);
+            champ.set(objet, valeur);
+        }
+
+        return objet;
+    }
+
+    private Object[] resolveArguments(Method method, HttpServletRequest req)
+            throws ReflectiveOperationException {
+
+        Parameter[] parameters = method.getParameters();
+        Object[] args = new Object[parameters.length];
+
+        for (int i = 0; i < parameters.length; i++) {
+            String nom = parameters[i].getName();
+            Class<?> type = parameters[i].getType();
+
+            if (type == HttpServletRequest.class) {
+                args[i] = req;
+            } else if (isSimpleType(type)) {
+                args[i] = convert(req.getParameter(nom), type);
+            } else {
+                args[i] = bind(type, nom + ".", req); 
+            }
+        }
+        return args;
+    }
 
     protected void processRequest(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
 
-       
         resp.setContentType("text/html;charset=UTF-8");
 
-        String uri        = req.getRequestURI();
-        String context     = req.getContextPath();
-        String url         = uri.substring(context.length());
-        String methodHttp  = req.getMethod();
+        String uri = req.getRequestURI();
+        String context = req.getContextPath();
+        String url = uri.substring(context.length());
+        String methodHttp = req.getMethod();
 
         System.out.println("[FrontController] " + methodHttp + " " + url);
 
-        
         String realPath = getServletContext().getRealPath(url);
         if (realPath != null) {
             File fichier = new File(realPath);
@@ -178,18 +228,17 @@ public class FrontControllerServlet extends HttpServlet {
         }
 
         try {
-        
-            UrlMethod key   = new UrlMethod(url, methodHttp);
+
+            UrlMethod key = new UrlMethod(url, methodHttp);
             Mapping mapping = mappings.get(key);
 
             if (mapping == null) {
                 throw new ExceptionUrl(url + " [" + methodHttp + "]");
             }
 
-           
             Object controllerInstance = getControllerInstance(mapping.getControllerClass());
 
-            Method method     = mapping.getMethod();
+            Method method = mapping.getMethod();
             Class<?>[] params = method.getParameterTypes();
             Object result;
 
@@ -197,39 +246,33 @@ public class FrontControllerServlet extends HttpServlet {
             if (params.length == 1 && params[0] == ApplicationContext.class) {
                 result = method.invoke(controllerInstance, springContext);
 
-
-
-
-            // raha tsy misy param
+                // raha tsy misy param
             } else if (params.length == 0) {
                 result = method.invoke(controllerInstance);
 
-           
             } else {
                 Object[] args = resolveArguments(method, req);
                 result = method.invoke(controllerInstance, args);
             }
 
-           
             if (method.isAnnotationPresent(ApiRest.class)) {
 
                 resp.setContentType("application/json;charset=UTF-8");
                 PrintWriter out = resp.getWriter();
 
                 if (result instanceof String) {
-                   
+
                     String jsonBrut = (String) result;
                     out.print(jsonBrut);
                 } else {
-                   
+
                     out.print(JsonUtil.objectToJson(result));
                 }
 
                 out.flush();
-                return; 
+                return;
             }
 
-          
             if (result instanceof ModelAndView mv) {
 
                 for (Map.Entry<String, Object> entry : mv.getModel().entrySet()) {
@@ -239,8 +282,8 @@ public class FrontControllerServlet extends HttpServlet {
                 String viewPath = prefix + mv.getView() + suffix;
                 System.out.println("[FrontController] forward → " + viewPath);
                 getServletContext()
-                    .getRequestDispatcher(viewPath)
-                    .forward(req, resp);
+                        .getRequestDispatcher(viewPath)
+                        .forward(req, resp);
 
             } else if (result instanceof String texte) {
                 resp.getWriter().println(texte);
@@ -255,12 +298,12 @@ public class FrontControllerServlet extends HttpServlet {
             out.println("<html><body>");
             out.println("<h2 style='color:red;'>404 — URL introuvable</h2>");
             out.println("<p><b>URL demandée :</b> "
-                        + methodHttp + " " + url + "</p>");
+                    + methodHttp + " " + url + "</p>");
             out.println("<h3>Mappings disponibles :</h3>");
             out.println("<ul>");
             for (Map.Entry<UrlMethod, Mapping> entry : mappings.entrySet()) {
                 UrlMethod k = entry.getKey();
-                Mapping   m = entry.getValue();
+                Mapping m = entry.getValue();
                 out.println("<li>"
                         + k.getMethod() + " " + k.getUrlString()
                         + " → "
