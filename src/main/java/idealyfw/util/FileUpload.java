@@ -3,6 +3,7 @@ package idealyfw.util;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class FileUpload {
     private final String nomOriginal ; 
@@ -43,4 +44,23 @@ public class FileUpload {
     }
     return Files.write(cible, contenu);
 }
+
+    public Path save() throws IOException {
+        return saveTo(dossierUpload());
+    }
+
+    public Path save(String sousDossier) throws IOException {
+        Path base = dossierUpload();
+        Path dossier = base.resolve(sousDossier).normalize();
+        if (!dossier.startsWith(base)) {
+            throw new IOException("Sous-dossier invalide");
+        }
+        return saveTo(dossier);
+    }
+
+    private static Path dossierUpload() {
+        String dir = ConfigUtil.get("upload.dir",
+                System.getProperty("java.io.tmpdir") + "/uploads");
+        return Paths.get(dir).toAbsolutePath().normalize();
+    }
 }
