@@ -10,6 +10,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.lang.reflect.Parameter;
 import java.io.File;
+import jakarta.servlet.http.Part;
+import idealyfw.util.FileUpload;
+import java.nio.file.Paths;
 
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.context.ApplicationContext;
@@ -24,6 +27,13 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.annotation.MultipartConfig;
+
+@MultipartConfig(
+    fileSizeThreshold = 1024 * 1024,        // au-delà de 1 Mo : fichier temporaire sur disque
+    maxFileSize       = 5 * 1024 * 1024,    // 5 Mo max par fichier
+    maxRequestSize    = 10 * 1024 * 1024    // 10 Mo max pour toute la requête
+)
 
 public class FrontControllerServlet extends HttpServlet {
 
@@ -153,7 +163,7 @@ public class FrontControllerServlet extends HttpServlet {
         return false;
     }
 
-    private Object bind(Class<?> type, String prefixe, HttpServletRequest req) throws ReflectiveOperationException {
+    private Object bind(Class<?> type, String prefixe, HttpServletRequest req) throws ReflectiveOperationException , IOException, ServletException {
 
        
         Object objet = type.getDeclaredConstructor().newInstance();
@@ -161,23 +171,29 @@ public class FrontControllerServlet extends HttpServlet {
       
         for (Field champ : type.getDeclaredFields()) {
 
-            String nomParam = prefixe + champ.getName(); // ohatra hoe : "p.femme.nom"
+            String nomParam = prefixe + champ.getName();     // "e.photo"
             Class<?> typeChamp = champ.getType();
             Object valeur;
 
-            if (isSimpleType(typeChamp)) {
+            if (typeChamp == FileUpload.class) {          
+                valeur = readFile(req, nomParam);
+                if (valeur == null) continue;
+
+            } else if (typeChamp == byte[].class) {       
+                FileUpload f = readFile(req, nomParam);
+                if (f == null) continue;
+                valeur = f.getContenu();
+
+            } else if (isSimpleType(typeChamp)) {
                 String brut = req.getParameter(nomParam);
-                if (brut == null)
-                    continue; // rien envoyé : on laisse la valeur par défaut
+                if (brut == null) continue;
                 valeur = convert(brut, typeChamp);
+
             } else {
-              
-                if (!hasParamWithPrefix(nomParam + ".", req))
-                    continue;
+                if (!hasParamWithPrefix(nomParam + ".", req)) continue;
                 valeur = bind(typeChamp, nomParam + ".", req);
             }
 
-           
             champ.setAccessible(true);
             champ.set(objet, valeur);
         }
@@ -185,19 +201,48 @@ public class FrontControllerServlet extends HttpServlet {
         return objet;
     }
 
+    private  FileUpload readFile(HttpServletRequest req , String nomChamp)throws IOException, ServletException {
+        String ct = req.getContentType();
+        if (ct == null || !ct.toLowerCase().startsWith("multipart/")) {
+            return null;
+        }
+        Part part = req.getPart(nomChamp) ;
+        if(part == null ) return  null ;
+        String nomFichier = part.getSubmittedFileName() ;
+        if(nomFichier == null || nomFichier .isBlank()){
+            return  null ;
+        }
+        nomFichier = Paths.get(nomFichier).getFileName().toString() ;
+        byte[] octets ;
+        try( var in = part.getInputStream()) {
+            octets = in.readAllBytes();
+        }
+        return  new FileUpload(nomFichier , part.getContentType(), octets) ;
+    }
+
+
     private Object[] resolveArguments(Method method, HttpServletRequest req)
-            throws ReflectiveOperationException {
+            throws ReflectiveOperationException , IOException, ServletException {
 
         Parameter[] parameters = method.getParameters();
         Object[] args = new Object[parameters.length];
 
         for (int i = 0; i < parameters.length; i++) {
             String nom = parameters[i].getName();
+            System.out.println("param = " + nom + " | Content-Type = " + req.getContentType());
             Class<?> type = parameters[i].getType();
 
             if (type == HttpServletRequest.class) {
                 args[i] = req;
-            } else if (isSimpleType(type)) {
+            } else if (type == FileUpload.class) {            
+                args[i] = readFile(req, nom);
+
+            } else if (type == byte[].class) {                 
+                FileUpload f = readFile(req, nom);
+                args[i] = (f == null) ? null : f.getContenu();
+
+            }
+            else if (isSimpleType(type)) {
                 args[i] = convert(req.getParameter(nom), type);
             } else {
                 args[i] = bind(type, nom + ".", req); 
