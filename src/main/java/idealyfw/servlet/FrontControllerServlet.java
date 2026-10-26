@@ -19,6 +19,7 @@ import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.context.ApplicationContext;
 
 import idealyfw.annotation.ApiRest;
+import idealyfw.annotation.Auth;
 import idealyfw.exception.ExceptionUrl;
 import idealyfw.util.JsonUtil;
 import idealyfw.util.Mapping;
@@ -28,6 +29,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import jakarta.servlet.annotation.MultipartConfig;
 import idealyfw.util.MySession;
 
@@ -45,6 +47,9 @@ public class FrontControllerServlet extends HttpServlet {
 
     String prefix;
     String suffix;
+
+    String userKey;
+    String roleKey;
 
     private final Map<Class<?>, Object> controllerInstances = new ConcurrentHashMap<>();
 
@@ -72,10 +77,17 @@ public class FrontControllerServlet extends HttpServlet {
         prefix = getServletContext().getInitParameter("prefix");
         suffix = getServletContext().getInitParameter("suffix");
 
+        userKey = getServletContext().getInitParameter("sessionUserKey");
+        roleKey = getServletContext().getInitParameter("sessionRoleKey");
+
+
         if (prefix == null)
             prefix = "";
         if (suffix == null)
             suffix = "";
+
+        if (userKey == null || userKey.isBlank()) userKey = "user";  
+        if (roleKey == null || roleKey.isBlank()) roleKey = "role";
 
         System.out.println("[FrontController] initialisé ");
         System.out.println("[FrontController] prefix = " + prefix);
@@ -256,6 +268,12 @@ public class FrontControllerServlet extends HttpServlet {
         return args;
     }
 
+    private String lireString(HttpSession http, String cle) {
+        if (http == null) return null;
+        Object v = http.getAttribute(cle);
+        return (v == null) ? null : v.toString();
+    }
+
     protected void processRequest(HttpServletRequest req, HttpServletResponse resp)
         throws ServletException, IOException {
 
@@ -283,7 +301,7 @@ public class FrontControllerServlet extends HttpServlet {
         // 2. chercher le mapping
         UrlMethod key = new UrlMethod(url, methodHttp);
         Mapping mapping = mappings.get(key);
-
+      
         if (mapping == null) {
             throw new ExceptionUrl(url + " [" + methodHttp + "]");
         }
@@ -292,6 +310,33 @@ public class FrontControllerServlet extends HttpServlet {
         Object controllerInstance = getControllerInstance(mapping.getControllerClass());
 
         Method method = mapping.getMethod();
+
+
+        Auth auth = method.getAnnotation(Auth.class);
+        if (auth == null) auth = mapping.getControllerClass().getAnnotation(Auth.class);
+
+        if (auth != null) {
+            HttpSession http = req.getSession(false);
+            String user = lireString(http, userKey);
+
+            if (user == null) {
+                resp.sendRedirect(req.getContextPath() + "/login/form");
+                return;
+            }
+
+            String[] roles = auth.roles();
+            if (roles.length > 0) {
+                String roleUser = lireString(http, roleKey);
+                boolean ok = false;
+                for (String r : roles) {
+                    if (r.equals(roleUser)) ok = true;
+                }
+                if (!ok) {
+                    resp.sendError(403, "Accès refusé : rôle " + roleUser);
+                    return;
+                }
+            }
+        }
         Class<?>[] params = method.getParameterTypes();
         Object result;
 
