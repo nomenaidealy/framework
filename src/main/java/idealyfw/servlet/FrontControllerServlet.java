@@ -51,13 +51,17 @@ public class FrontControllerServlet extends HttpServlet {
     String userKey;
     String roleKey;
 
-    private final Map<Class<?>, Object> controllerInstances = new ConcurrentHashMap<>();
+    private  Map<Class<?>, Object> controllerInstances ;
 
     @Override
     public void init() throws ServletException {
 
         mappings = (Map<UrlMethod, Mapping>) getServletContext()
                 .getAttribute("globalMappings");
+
+        
+        controllerInstances = (Map<Class<?>, Object>) getServletContext().getAttribute("ctrlInstances");
+        
 
         springContext = (ApplicationContext) getServletContext()
                 .getAttribute("springContext");
@@ -111,14 +115,14 @@ public class FrontControllerServlet extends HttpServlet {
 
         Object instance = controllerInstances.get(controllerClass);
 
-        if (instance == null) {
-            instance = controllerClass.getDeclaredConstructor().newInstance();
+        // if (instance == null) {
+        //     instance = controllerClass.getDeclaredConstructor().newInstance();
 
-            AutowireCapableBeanFactory factory = springContext.getAutowireCapableBeanFactory();
-            factory.autowireBean(instance);
+        //     AutowireCapableBeanFactory factory = springContext.getAutowireCapableBeanFactory();
+        //     factory.autowireBean(instance);
 
-            controllerInstances.put(controllerClass, instance);
-        }
+        //     controllerInstances.put(controllerClass, instance);
+        // }
 
         return instance;
     }

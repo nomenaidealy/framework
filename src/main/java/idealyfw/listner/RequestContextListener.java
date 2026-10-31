@@ -6,7 +6,11 @@ import idealyfw.util.ParamScanUtil;
 import idealyfw.util.UrlMethod;
 import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebListener;
+
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @WebListener
 public class RequestContextListener implements ServletContextListener {
@@ -19,6 +23,9 @@ public class RequestContextListener implements ServletContextListener {
             .getInitParameter("springConfigClass");
 
         try {
+
+
+       
      
             AnnotationConfigApplicationContext springContext =
                 new AnnotationConfigApplicationContext(
@@ -30,10 +37,17 @@ public class RequestContextListener implements ServletContextListener {
 
           
             ParamScanUtil scanner = new ParamScanUtil();
-            scanner.scan(packageName);
+            List<Class<?>> classes = scanner.scan(packageName);
             Map<UrlMethod, Mapping> mappings = scanner.registry.getMappings();
+            Map<Class<?>, Object> controllerInstances = new ConcurrentHashMap<>();
+            for (Class<?> c : classes) {
+                controllerInstances.put(c, c.getDeclaredConstructor().newInstance());
+            }
 
             sce.getServletContext().setAttribute("globalMappings", mappings);
+
+            sce.getServletContext().setAttribute("ctrlInstances", controllerInstances);
+
 
             System.out.println("[Listener] Spring container démarré ");
             System.out.println("[Listener] " + mappings.size() + " mapping(s) enregistrés ");
